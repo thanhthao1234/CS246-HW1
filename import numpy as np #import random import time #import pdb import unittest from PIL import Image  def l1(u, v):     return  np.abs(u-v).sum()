@@ -1,0 +1,121 @@
+import numpy as np
+#import random
+import time
+#import pdb
+import unittest
+from PIL import Image
+
+def l1(u, v):
+    return  np.abs(u-v).sum()
+
+
+def load_data(filename):
+    return np.genfromtxt(filename, delimiter=',')
+
+def create_function(dimensions, thresholds):
+    def f(v):
+        boolarray = [v[dimensions[i]] >= thresholds[i] for i in range(len(dimensions))]
+        return "".join(map(str, map(int, boolarray)))
+    return funtions
+
+def hash_vector(functions, v):
+    return np.array([f(v) for f in functions])
+    
+def hash_data(functions, A):
+    return np.array(list(map(lambda v: hash_vector(functions, v), A)))
+    
+def get_candidates(hashed_A, hashed_point, query_index):
+    return filter(lambda i: i != query_index and \
+        any(hashed_point == hashed_A[i]), range(len(hashed_A)))
+        
+def lsh_setup(A, k = 24, L = 10):
+    functions = create_functions(k = k, L = L)
+    hashed_A = hash_data(functions, A)
+    return (functions, hashed_A)
+    def lsh_search(A, hashed_A, functions, query_index, num_neighbors = 10):
+    hashed_point = hash_vector(functions, A[query_index, :])
+    candidate_row_nums = get_candidates(hashed_A, hashed_point, query_index)
+    
+    distances = map(lambda r: (r, l1(A[r], A[query_index])), candidate_row_nums)
+    best_neighbors = sorted(distances, key=lambda t: t[1])[:num_neighbors]
+
+    return [t[0] for t in best_neighbors]
+    
+def plot(A, row_nums, base_filename):
+    for row_num in row_nums:
+        patch = np.reshape(A[row_num, :], [20, 20])
+        im = Image.fromarray(patch)
+        if im.mode != 'RGB':
+            im = im.convert('RGB')
+        im.save(base_filename + "-" + str(row_num) + ".png")
+        
+def linear_search(A, query_index, num_neighbors):
+    distances=  ( (r, l1(A[r], A[query_index])) for r in   range(len(A))  if r != query_index )
+    best_neighbors = sorted(distances, key=lambda t: t[1])[:num_neighbors]
+    
+    return [t[0] for t in best_neighbors]
+    
+from functools import reduce
+
+def measure_error(A,query_index,lsh_result: np.ndarray,linear_result:np.ndarray):
+    def sub_measure(result): 
+        return reduce(lambda a,b: a+b,
+                      map(lambda r:  l1(A[r],A[query_index]),result),0. )
+   
+    return sub_measure(lsh_result)/sub_measure(linear_result)
+from matplotlib import pyplot as plt
+
+def plot_error_change(file_path):   
+    A= load_data(file_path)
+    def geterror(k=24,L =10):
+        error =0.
+        functions, hashed_A = lsh_setup(A, k = k, L = L)
+        for query_index in range(100,1100,100):
+            lsh_result =  lsh_search(A, hashed_A, functions, query_index, num_neighbors = 3)
+            linear_result =  linear_search( A,query_index,num_neighbors=3)
+            error += measure_error(A,query_index,lsh_result,linear_result)
+        return error/10
+        plot(A,lsh_result,'LSH')
+        plot(A,linear_result,'LINEAR')  
+        plot(A,[100],'RAW')
+    
+  
+    x_L= range(10,22,2)
+    x_K= range(16,26,2)
+    y_L= [ geterror(L=l)  for l in x_L ]
+    y_K= [geterror(k=k)  for k in x_K  ]
+    plt.subplot(2,1,1)
+    plt.title('K=24')
+    plt.xlabel("L")
+    plt.ylabel("error")
+    plt.plot(x_L,y_L)
+    
+    plt.subplot(2,1,2)
+    plt.title('L=10')
+    plt.xlabel("K")
+    plt.ylabel("error")
+    plt.plot(x_K,y_K)
+    plt.show()
+    return (y_L,y_K)
+    
+def problem4():
+    y_L ,y_K  =  plot_error_change ('/content/sample_data/patches.csv') 
+    return  y_L ,y_K 
+class TestLSH(unittest.TestCase):
+    def test_l1(self):
+        u = np.array([1, 2, 3, 4])
+        v = np.array([2, 3, 2, 3])
+        self.assertEqual(l1(u, v), 4)
+
+    def test_hash_data(self):
+        f1 = lambda v: sum(v)
+        f2 = lambda v: sum([x * x for x in v])
+        A = np.array([[1, 2, 3], [4, 5, 6]])
+        self.assertEqual(f1(A[0,:]), 6)
+        self.assertEqual(f2(A[0,:]), 14)
+
+        functions = [f1, f2]
+        self.assertTrue(np.array_equal(hash_vector(functions, A[0, :]), np.array([6, 14])))
+        self.assertTrue(np.array_equal(hash_data(functions, A), np.array([[6, 14], [15, 77]])))
+        if __name__ == '__main__':
+          print(problem4())
