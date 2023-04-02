@@ -1,0 +1,28 @@
+from pyspark.sql import SparkSession
+from functools import partial
+from itertools import combinations
+
+
+# Câu d: 
+if __name__=='__main__':
+    spark = SparkSession.builder.getOrCreate()
+    sc = spark.sparkContext
+    lines=sc.textFile('/content/browsing.txt')
+
+    frequent_items=lines.flatMap(lambda l:l.split()).map(lambda ele:(ele,1)).\
+        reduceByKey(lambda e1,e2:e1+e2).filter(lambda x:x[1]>=100)
+
+    frequent_itemset=frequent_items.collectAsMap()
+
+    frequent_pairs = lines.map(lambda l: l.split()).flatMap(partial(combinations, r=2)).map(lambda pair: sorted(pair)) \
+        .map(lambda pair: (tuple(pair), 1)).filter(
+        lambda ele: ele[0][0] in frequent_itemset and ele[0][1] in frequent_itemset).reduceByKey(
+        lambda p1, p2: p1 + p2).filter(lambda x: x[1] >= 100)
+
+    freq_pairs_count=frequent_pairs.collectAsMap()
+
+    frequent_pairs=frequent_pairs.flatMap(lambda ele:[((ele[0][0],ele[0][1]),ele[1]),((ele[0][1],ele[0][0]),ele[1])])
+
+    frequent_pair_conf=frequent_pairs.map(lambda ele:(ele[0],float(ele[1]/frequent_itemset[ele[0][0]]))).sortBy(lambda x:-x[1])
+
+    frequent_pair_conf.toDF().show(10)
