@@ -1,0 +1,68 @@
+# Cài đặt Spark 
+!pip install pyspark
+!pip install -U -q PyDrive
+!apt install openjdk-8-jdk-headless -qq
+
+
+import os
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+
+
+from google.colab import drive
+drive.mount('/content/drive')
+# Avoids scroll-in-the-scroll in the entire Notebook
+from IPython.display import Javascript
+def resize_colab_cell():
+  display(Javascript('google.colab.output.setIframeHeight(0, true, {maxHeight: 400})'))
+get_ipython().events.register('pre_run_cell', resize_colab_cell)
+
+
+# Nhập các thư viện cần dùng 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+import pyspark
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark import SparkContext, SparkConf 
+
+
+def line2dataset(line):
+    src, dst_line= line.split('\t')
+    src = int(src.strip())
+    dst_list = [int(x.strip()) for x in dst_line.split(',') if x != '']
+    return src, dst_list
+    
+def filter_pairs(x):
+    if (x[0][0] != x[1][0]) and (not x[0][0] in x[1][1]) and (not x[1][0] in x[0][1]):
+        shared = len(list(set(x[0][1]).intersection(set(x[1][1]))))
+        return (x[0][0],[x[1][0],shared])
+        
+        
+def map_finaldataset(elem):
+    src = elem[0]
+    dst_commons = elem[1]
+    dst_commons=sorted(dst_commons,key=lambda x:(-x[1],x[0]))[:10]
+    recommendations=[pair[0] for pair in dst_commons]
+    return (src, recommendations)
+    
+if __name__ == "__main__":
+    spark = SparkSession.builder.getOrCreate()
+    sc = spark.sparkContext
+    dataset = sc.textFile("/content/soc-LiveJournal1Adj.txt")
+
+    dataset = dataset.map(line2dataset)
+
+    check_users = [924, 8941, 8942, 9019, 9020, 9021, 9022, 9990, 9992, 9993]
+    cartesian = dataset.cartesian(dataset).filter(lambda x: x[0][0] in check_users)
+
+    dataset = cartesian.map(filter_pairs).filter(lambda x: x != None and x[1][1] > 0)\
+        .filter(lambda x: x[0] in check_users) \
+        .groupByKey().mapValues(list).map(map_finaldataset)
+
+    id_check_dataset = dataset.filter(lambda x: x[0] in check_users).collect()
+
+    for key, val in id_check_dataset:
+        print('id:', key,' recommendations:', val) 
