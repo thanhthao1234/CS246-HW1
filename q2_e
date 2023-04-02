@@ -1,0 +1,11 @@
+# Câu e: 
+triples=lines.map(lambda l:l.split()).flatMap(partial(combinations,r=3)).map(lambda triple:tuple(list(sorted(triple))))
+
+triples=triples.map(lambda triple:(triple,1)).reduceByKey(lambda t1,t2:t1+t2).filter(lambda x:x[1]>=100)
+
+freq_triples_conf=triples.flatMap(lambda ele:[(((ele[0][0],ele[0][1]),ele[0][2]),ele[1]),
+                                                  (((ele[0][0],ele[0][2]),ele[0][1]),ele[1]),
+                                                  (((ele[0][1],ele[0][2]),ele[0][0]),ele[1])])\
+.reduceByKey(lambda t1,t2:t1+t2).map(lambda ele:(ele[0],ele[1]/freq_pairs_count[ele[0][0]])).sortBy(lambda x:(-x[1],x[0][0],x[0][1]))\
+                        .map(lambda ele:(ele[0][0],ele[0][1],ele[1]))
+freq_triples_conf.toDF().show(10) 
